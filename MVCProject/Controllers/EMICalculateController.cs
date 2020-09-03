@@ -12,7 +12,7 @@ namespace MVCProject.Controllers
     public class EMICalculateController : Controller
     {
         EMIRepository er = new EMIRepository();
-        // GET: EMICalculate Data
+        // GET: EMICalculate 
         public ActionResult EMI()
         {
             return View();
