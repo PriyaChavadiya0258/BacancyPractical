@@ -1,0 +1,176 @@
+﻿<head>
+    <title>EMI Payment</title>
+    <link href="~/Content/emi.css" rel="stylesheet" />
+
+</head>
+
+        <div id="mainForm">
+            <form id="form1" name="form1">
+                <div class="form-row">
+                    <div class="form-group col-md-6">
+                        <label for="name">Name<span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="name" placeholder="Enter Name" name="name">
+                    </div>
+                    <div class="form-group col-md-6">
+                        <label for="amount">Loan Amount<span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="amount" placeholder="Enter Amount" name="amount" onkeypress="return isNumberKey(event)">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group col-md-6">
+                        <label for="rate">Interest(in %)<span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="rate" placeholder="Enter Interest" name="rate" onkeypress="return isNumberKey(event)" >
+                    </div>
+                    <div class="form-group col-md-6">
+                        <label for="numPay">No. of Installments(in months)<span class="text-danger">*</span></label>
+                        <input type="number" class="form-control" id="numPay" placeholder="Enter Installments" name="numPay">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group col-md-6">
+                        <label for="ratePmt">Monthly Interest</label>
+                        <input type="number" class="form-control" id="ratePmt" placeholder="Monthly Interest" readonly>
+                    </div>
+                    <div class="form-group col-md-6">
+                        <label for="monPmt">EMI</label>
+                        <input type="number" class="form-control" id="monPmt" placeholder="EMI" readonly>
+                    </div>
+                </div>
+                <input type="button" onclick="commitData()" class="btn btn-primary" value="Show Amortization" />
+
+                <input type="button" onclick="saveData()" class="btn btn-primary" value="Save" />
+                <input type="button" onclick="window.location.reload()" class="btn btn-primary" value="Refresh" />
+
+            </form>
+        </div>
+    <div id="griddetails"></div>
+   <div id="loading" hidden>
+    <img id="loading-image" src="Images/loader.gif" alt="Loading..." />
+</div>
+
+
+<script>
+    var htmlstring = "";
+    var loanName = "";
+    var loanAmount = "";
+    var interest = "";
+    var numofPay = "";
+    var griddata = [];
+
+    function commitData() {
+        $("#loading").show();
+        // Declair and initialize the variables
+        var eleId;
+        var eleDat;
+        loanName = document.form1.name.value;
+        loanAmount = document.form1.amount.value;
+        interest = document.form1.rate.value;
+        numofPay = document.form1.numPay.value;
+        var loopNum;
+        var tagNam;
+        if (loanName == "" || loanAmount == "" || interest == "" || numofPay == "") {
+            alert("All Details are mandatory");
+            return false;
+        }
+
+
+        //Calculate and display the monthly payment amount
+        var monPmt = calcMonthly(loanAmount, numofPay, interest);
+        $("#monPmt").val(monPmt);
+        var rate = interest / 12;
+        $("#ratePmt").val(rate);
+
+
+        // Call the amortization routine
+        emicalculate(loanAmount, interest, numofPay, monPmt);
+        
+        return;
+    }
+
+    function emicalculate(loanAmount, interest, numofPay, monPmt) {
+
+        $("#griddetails").html("");
+        htmlstring = "";
+        htmlstring = htmlstring + "<td><table class='table table-striped table-responsive-md btn-table' id='pmtTab'><tr style='background-color:DeepSkyBlue'><td id='numHead'>Installment</td><td id='oldBal'>Opening</td><td id='pt'>Principal</td><td id='oil'>Interest</td><td id='emi'>EMI</td><td id='newBal'>Closing</td><td id='til'>Cummulative Interest</td></tr>";
+        $.ajax({
+            type: "POST",
+            url: '@Url.Action("EMIGridTable", "EMICalculate")',
+            data: { loanAmount: loanAmount, intRate: interest, numPay: numofPay, monPmt: monPmt },
+            dataType: "json",
+            async: false,
+            success: function (data) {
+                griddata = data;
+                // The for loop performs the amortization
+                for (var i = 0; i < data.length; i++) {
+
+                    htmlstring = htmlstring + "<tr><td>" + (i + 1) + "</td>";
+                    htmlstring = htmlstring + "<td>" + data[i].Opening + "</td>";
+                    htmlstring = htmlstring + "<td>" + twoDecimal(data[i].Principal) + "</td>";
+                    htmlstring = htmlstring + "<td>" + twoDecimal(data[i].Interest) + "</td>";
+                    htmlstring = htmlstring + "<td>" + data[i].EMI + "</td>";
+                    htmlstring = htmlstring + "<td>" + twoDecimal(data[i].Closing) + "</td>";
+                    htmlstring = htmlstring + "<td>" + twoDecimal(data[i].CummulativeInterest) + "</td></tr>";
+
+                }
+            },
+            error: function (msg) {
+                alert(msg);
+            }
+        });
+
+
+        htmlstring = htmlstring + "</table></td></tr></table>";
+        $("#griddetails").append(htmlstring);
+        $("#loading").hide();
+        return;
+    }
+
+
+    function calcMonthly(principal, numofPay, interest) {
+        var monthly;
+        var interest = (interest / 100) / 12;
+        var principal;
+        // The accounting formula to calculate the monthly payment is
+        //    M = P * ((I + 1)^N) * I / (((I + 1)^N)-1)
+
+        monthly = (principal * (Math.pow((1 + interest), numofPay)) * interest / (Math.pow((1 + interest), numofPay) - 1));
+        return twoDecimal(monthly);
+    }
+
+    function twoDecimal(chgVar) {
+        var chgVar;
+        var twoDec = chgVar.toFixed(2);
+        return twoDec;
+    }
+
+    function saveData() {
+        commitData();
+        $("#loading").show();
+        $.ajax({
+            type: "GET",
+            url: "../EMICalculate/EMISaveGridData",
+            data: { loanname: loanName, loanAmount: loanAmount, intRate: interest, numPay: numofPay, monPmt: $("#monPmt").val() },
+            contentType: "application/json; charset=utf-8",
+            dataType: "json",
+            success: function (result) {
+                alert(result);
+                // console.log(result);
+
+            }
+            , error: function (msg) {
+                alert(msg);
+            }
+        });
+        $("#loading").hide();
+
+    }
+    function isNumberKey(evt) {
+        var charCode = (evt.which) ? evt.which : evt.keyCode;
+        if (charCode != 46 && charCode > 31
+          && (charCode < 48 || charCode > 57))
+            return false;
+
+        return true;
+    }
+
+</script>
